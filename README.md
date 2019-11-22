@@ -1,0 +1,2 @@
+# AI-8queen
+ NTPU AI HOMEWORK
