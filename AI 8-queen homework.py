@@ -25,6 +25,7 @@ Output for each algorithm：
 
 """
 
+from numba import jit      # 加速numpy進行
 import numpy as np
 
 frontier=[]                 
@@ -36,12 +37,9 @@ Rbfsmax=0                  # 記錄rbfs最多的記憶的node
 goal=None          
 
 
-def countArray(matrix):              #計算有多少chess
-    count=0
-    for ii in range(8):
-        for jj in range(8):
-            if matrix[ii][jj]=='〒':
-                count+=1
+def countArray(matrix):               #計算有多少chess
+    a=np.extract(matrix=='〒',matrix)
+    count=len(a)
     return count            
 
 def children_left(matrix):
@@ -115,7 +113,7 @@ class Node:
                left.parent.append(self.state)        #記錄parent
                self.children.append(left)            #記錄children
         else:    
-            add=children_right(self.state)           #如果第0個column沒有棋子
+            add=children_right(self.state)           #如果第0個column有棋子
             for n in add:                            #就加右邊
                right=Node(n,self.level+1)
                right.cost=cost(right,expanded_node)
@@ -123,7 +121,6 @@ class Node:
                self.children.append(right)           #記錄children
     def __repr__(self):          
         return str(self.state)    #print會印出state
-
 
 def heuristic(matrix):
     '''
@@ -133,45 +130,45 @@ def heuristic(matrix):
     滿足admissible:h(n)<=h* , h*為count加總
     '''
     count=0
-    chess=[]
+    chess=set()
     for i in range(8):
         for j in range(8):
             if matrix[i][j]=='〒':
-                chess.append([i,j])              #找到所有的chess
+                chess.add((i,j))                 #找到所有的chess
     for k in chess:
         for i in range(1,7):
             if k[0]-i>=0 and k[1]-i>=0:          #計算左上
-                if [k[0]-i,k[1]-i] in chess:
+                if (k[0]-i,k[1]-i) in chess:
                     count+=1
             if k[0]+i<=7 and k[1]+i<=7:          #計算左下 
-                if [k[0]+i,k[1]+i] in chess:
+                if (k[0]+i,k[1]+i) in chess:
                     count+=1
             if k[0]-i>=0 and k[1]+i<=7:          #計算右上
-                if [k[0]-i,k[1]+i] in chess:
+                if (k[0]-i,k[1]+i) in chess:
                     count+=1
             if k[0]+i<=7 and k[1]-i>=0:          #計算右下
-                if [k[0]+i,k[1]-i] in chess: 
+                if (k[0]+i,k[1]-i) in chess: 
                     count+=1        
         for j in range(1,8):
             if k[0]-j>=0:                        #計算上方
-                if [k[0]-j,k[1]] in chess:
+                if (k[0]-j,k[1]) in chess:
                     count+=1
             if k[0]+j<=7:                        #計算下方
-                if [k[0]+j,k[1]] in chess:
+                if (k[0]+j,k[1]) in chess:
                     count+=1        
             if k[1]-j>=0:                        #計算左方
-                if [k[0],k[1]-j] in chess:
+                if (k[0],k[1]-j) in chess:
                     count+=1
             if k[1]+j<=7:                        #計算右方
-                if [k[0],k[1]+j] in chess:
+                if (k[0],k[1]+j) in chess:
                     count+=1               
     return count-countArray(matrix)             
-
+@jit
 def cost(Node,expand):
     num=0
     path=[]
     path.append(Node) 
-    while Node.parent!=[]:                       #找到path上所有的node,記錄cost
+    while Node.parent!=[]:                           #找到path上所有的node,記錄cost
         for ii in range(0,len(expand)):
             if (np.array(expand[ii].state).reshape(8,8)==np.array(Node.parent).reshape(8,8)).all():
                 path.append(expand[ii])
@@ -179,15 +176,14 @@ def cost(Node,expand):
         Node=expand[ii]
     for j in path:                              
         num+=heuristic(j.state)+countArray(j.state)  #加總所有cost, cost為 heuristic(j.state)+countArray(j.state)
-    return num 
-        
+    return num       
  
 def test(matrix):                      #測試是否所有棋子皆為non-attack
-    chess=[]
+    chess=set()
     for i in range(8):
         for j in range(8):
             if matrix[i][j]=='〒':
-                chess.append([i,j])           
+                chess.add((i,j))           
     for i in range(8):                  #檢查row有沒有重複的chess
         count=0
         for j in range(8):
@@ -207,10 +203,10 @@ def test(matrix):                      #測試是否所有棋子皆為non-attack
         count=0
         for i in range(1,8):
             if k[0]-i>=0 and k[1]-i>=0:
-                if [k[0]-i,k[1]-i] in chess:
+                if (k[0]-i,k[1]-i) in chess:
                     count+=1
             if k[0]+i<=7 and k[1]+i<=7:
-                if [k[0]+i,k[1]+i] in chess:
+                if (k[0]+i,k[1]+i) in chess:
                     count+=1
         if count>0:
             return False
@@ -218,10 +214,10 @@ def test(matrix):                      #測試是否所有棋子皆為non-attack
         count=0
         for i in range(1,8):
             if k[0]-i>=0 and k[1]+i<=7:
-                if [k[0]-i,k[1]+i] in chess:
+                if (k[0]-i,k[1]+i) in chess:
                     count+=1
             if k[0]+i<=7 and k[1]-i>=0:
-                if [k[0]+i,k[1]-i] in chess:
+                if (k[0]+i,k[1]-i) in chess:
                     count+=1 
         if count>0:
             return False       
@@ -229,10 +225,10 @@ def test(matrix):                      #測試是否所有棋子皆為non-attack
         count=0
         for i in range(1,8):
             if k[0]-i>=0 and k[1]-i>=0:
-                if [k[0]-i,k[1]-i] in chess:
+                if (k[0]-i,k[1]-i) in chess:
                     count+=1
             if k[0]+i<=7 and k[1]+i<=7:
-                if [k[0]+i,k[1]+i] in chess:
+                if (k[0]+i,k[1]+i) in chess:
                     count+=1
         if count>0:
             return False
@@ -240,10 +236,10 @@ def test(matrix):                      #測試是否所有棋子皆為non-attack
         count=0
         for i in range(1,8):
             if k[0]-i>=0 and k[1]+i<=7:
-                if [k[0]-i,k[1]+i] in chess:
+                if (k[0]-i,k[1]+i) in chess:
                     count+=1
             if k[0]+i<=7 and k[1]-i>=0:
-                if [k[0]+i,k[1]-i] in chess:
+                if (k[0]+i,k[1]-i) in chess:
                     count+=1 
         if count>0:
             return False           
@@ -259,7 +255,6 @@ class Iterative_Deepening_Search:
     goal test when insert
     
     '''
-    delete=0
     def __init__(self,initial):
         global find
         self.start=initial
@@ -285,6 +280,7 @@ class Iterative_Deepening_Search:
                     path[j].state=np.array(path[j].state).reshape(8,8)
                 print('move:',j)
                 print(path[j])
+            print('The number of state changes:',j)       
             return True   
         frontier.append(start)               #沒找到goal,則加入forntier
         
@@ -304,7 +300,7 @@ class Iterative_Deepening_Search:
         del frontier[-1]
         expanded_node[-1].expanded = True
         expanded_node[-1].add_children()
-        for n in expanded_node[-1].children:           #把展開state的children加入frontier
+        for n in expanded_node[-1].children:                     #把展開state的children加入frontier
             if len(expanded_node[-1].children)==0:break
             if not n.expanded:
                self.start=n
@@ -326,8 +322,8 @@ class Uniform_Cost_Search:
         global expanded_node
         start = self.start
         frontier.append(start)
-        Uniform_Cost_Search.movement.append(start)
-        
+        Uniform_Cost_Search.movement.append(start)   #多一個frontier,movement就加1
+     
     def pop_off(self):                                                           #在pop_off的時候才做goal test
         global frontier
         global expanded_node
@@ -348,6 +344,7 @@ class Uniform_Cost_Search:
                     path[j].state=np.array(path[j].state).reshape(8,8)
                 print('move:',j)
                 print(path[j])
+            print('The number of state changes:',j)       
             return True   
         else:                                                 #否則
             def fsorted(node):                                #把frontier的state按照cost排序
@@ -392,7 +389,7 @@ class Geedy_Bestfirst_Search:
             path=[]
             path.append(start) 
             Geedy_Bestfirst_Search.movement.append(start)
-            while start.parent!=[]:                                              #找它的parent,直到initial
+            while start.parent!=[]:                                  #找它的parent,直到initial
                 for ii in range(0,len(expanded_node)):
                     if (np.array(expanded_node[ii].state).reshape(8,8)==np.array(start.parent).reshape(8,8)).all():
                        path.append(expanded_node[ii])
@@ -404,9 +401,10 @@ class Geedy_Bestfirst_Search:
                     path[j].state=np.array(path[j].state).reshape(8,8)
                 print('move:',j)
                 print(path[j])
+            print('The number of state changes:',j)   
             return True   
-        frontier.append(start)
-        Geedy_Bestfirst_Search.movement.append(start)
+        frontier.append(start)                                       #如果start不為goal,加入frontier
+        Geedy_Bestfirst_Search.movement.append(start)                #多一個frontier,movement就加1
         
     def greedy(self):
         
@@ -427,15 +425,15 @@ class Geedy_Bestfirst_Search:
                 add=k
                 gmin=g
         expanded_node.append(frontier[add])
-        state_changes+=1
-        del frontier[add]
+        state_changes+=1                           #記錄展開過多少state
+        del frontier[add]        
         expanded_node[-1].expanded = True
         expanded_node[-1].add_children()
         for n in expanded_node[-1].children: 
             if not n.expanded:
                self.start=n
                f=self.add_frontier()
-               if f==True:                       #如果在add_frontier過程中找到goal,f會＝true
+               if f==True:                         #如果在add_frontier過程中找到goal,f會＝true
                  return f  
 
 class Astar:
@@ -465,9 +463,10 @@ class Astar:
                     path[j].state=np.array(path[j].state).reshape(8,8)
                 print('move:',j)
                 print(path[j])
+            print('The number of state changes:',j)       
             return True   
-        frontier.append(start)
-        Astar.movement.append(start)
+        frontier.append(start)                                       #如果start不為goal
+        Astar.movement.append(start)                                 #多一個frontier,movement就加1
         
     def astar(self):
         
@@ -515,8 +514,8 @@ class Rbfs:
         global Rbfsmax
         start = self.start
         frontier.append(start)
-        Rbfs.movement.append(start)
-        if len(Rbfs.movement)>Rbfsmax:       #frontier多1,Rbfs.movement就多1
+        Rbfs.movement.append(start)          #多一個frontier,movement就多1
+        if len(Rbfs.movement)>Rbfsmax:       
            Rbfsmax=len(Rbfs.movement)        #Rbfsmax記錄最多的node數目
         goal=Rbfs.goal_test()                #goal test 
         if goal==True:
@@ -547,6 +546,7 @@ class Rbfs:
                       path[j].state=np.array(path[j].state).reshape(8,8)
                  print('move:',j)
                  print(path[j])
+               print('The number of state changes:',j)       
                return True   
            
     def rbfs(self):
@@ -577,26 +577,26 @@ class Rbfs:
                   return True      
             return None               
         if expanded_node[-1].children==[]:
-            num=len(expanded_node[-1].children)
-            for j in range(0,num):                            #把expanded_node[-1]的children自frontier去除
-                del frontier[-1]
-                del Rbfs.movement[-1]
-            expanded_node[-1].value=10000    
+            #num=len(expanded_node[-1].children)
+            #for j in range(0,num):                           #把expanded_node[-1]自frontier去除
+                #del frontier[-1]
+                #del Rbfs.movement[-1]
+            expanded_node[-1].value=10000                     #把expanded_node[-1]的value設為一個大值
             frontier.append(expanded_node[-1])                #把expanded_node[-1]加回frontier
-            del expanded_node[-1]                             #自expanded_node刪除
+            del expanded_node[-1]                             #自expanded_node中刪除
             return None
         for m in expanded_node[-1].children:                  #如果沒找到goal
            if m.value==None:
-              g=heuristic(m.state)                            #記錄children的f(n)
-              f=g+cost(m,expanded_node)   
+              h=heuristic(m.state)                            #記錄children的f(n)
+              f=h+cost(m,expanded_node)   
               m.value=f 
         def fsort(x):                                         #按照children的f(n)值排序
              return x.value      
         expanded_node[-1].children.sort(key=fsort)  
         fmin=expanded_node[-1].children[0].value  
-        fsecond=expanded_node[-1].children[1].value          
+        fsecond=expanded_node[-1].children[1].value           #fsecond為第二小的值   
         add=expanded_node[-1].children[0]                     #add為f(n)最小者,並找frontier第二小的值
-        if add.value>expanded_node[-1].keep:                  #如果fmin>keep
+        if add.value>expanded_node[-1].keep:                  #如果fmin>keep,代表要回溯
             expanded_node[-1].value=add.value                 #expanded_node[-1].value=fmin       
             expanded_node[-1].keep=None
             expanded_node[-1].expanded=False 
@@ -605,9 +605,10 @@ class Rbfs:
                 del frontier[-1]
                 del Rbfs.movement[-1]
             frontier.append(expanded_node[-1])                #把expanded_node[-1]加回frontier
-            del expanded_node[-1]                             #自expanded_node刪除
-        else:                         
-            add.keep=fsecond                                  #如果fmin<=keep
+            del expanded_node[-1]                             #自expanded_node中刪除
+            
+        else:                                                 #如果fmin<=keep
+            add.keep=min(fsecond,expanded_node[-1].keep)      #add的keep為frontier中f(n)第二小值
             expanded_node.append(add)                         #展開add
             state_changes+=1
             if expanded_node[-1].children==[]:
@@ -619,7 +620,7 @@ class Rbfs:
                  f=self.add_frontier()
                  if f==True:
                   return True 
-             
+            
 def IDS(initial_state,initial):
     print('')
     print('This is IDS')
@@ -630,7 +631,7 @@ def IDS(initial_state,initial):
     for i in range(1,9):                          #在7層時會解開
         if find==True:
             MaxnumState=MaxnumState
-            print('The number of state changes:',state_changes)
+            print('The number of node ever expanded:',state_changes)
             state_changes=0
             print('Max states ever saved:',MaxnumState)
             print('############################')
@@ -675,7 +676,7 @@ def UCS(initial_state,initial):
     while len(expanded_node)<10000 :
         if find==True:
            MaxnumState=len(Uniform_Cost_Search.movement)+1       #加1,因initial_state沒算到 
-           print('The number of state changes:',state_changes)
+           print('The number of node ever expanded:',state_changes)
            state_changes=0
            print('Max states ever saved:',MaxnumState)
            print('############################')
@@ -704,10 +705,10 @@ def GREEDY(initial_state,initial):
     global MaxnumState
     global state_changes
     frontier.append(Node(initial_state,0))
-    while len(expanded_node)==0 or len(expanded_node)<5000 :
+    while len(expanded_node)==0 or len(expanded_node)<10000 :
         if find==True:
            MaxnumState=len(Geedy_Bestfirst_Search.movement)+1     #加1,因initial_state沒算到 
-           print('The number of state changes:',state_changes)
+           print('The number of node ever expanded:',state_changes)
            state_changes=0
            print('Max states ever saved:',MaxnumState)
            print('############################')
@@ -716,6 +717,7 @@ def GREEDY(initial_state,initial):
            MaxnumState=0
            expanded_node.clear()
            frontier.clear()
+           Geedy_Bestfirst_Search.movement=[]
            return None
         else:
            Geedy_Bestfirst_Search(initial) 
@@ -734,10 +736,10 @@ def ASTAR(initial_state,initial):
     global MaxnumState
     global state_changes
     frontier.append(Node(initial_state,0))
-    while len(expanded_node)==0 or len(expanded_node)<100 :
+    while len(expanded_node)==0 or len(expanded_node)<10000 :
         if find==True:
            MaxnumState=len(Astar.movement)+1                      #加1,因initial_state沒算到 
-           print('The number of state changes:',state_changes)
+           print('The number of node ever expanded:',state_changes)
            state_changes=0
            print('Max states ever saved:',MaxnumState)
            print('############################')
@@ -746,6 +748,7 @@ def ASTAR(initial_state,initial):
            MaxnumState=0
            expanded_node.clear()
            frontier.clear()
+           Astar.movement=[]
            return None
         else:
            Astar(initial)         
@@ -766,10 +769,10 @@ def RBFS(initial_state,initial):
     global state_changes
     initial.keep=100000                                          #把initial的keep設為一個大的數字
     frontier.append(initial) 
-    while len(expanded_node)<30 :
+    while len(expanded_node)<10000 :
         if find==True:
            MaxnumState=Rbfsmax+1                                 #加1,因initial_state沒算到 
-           print('The number of state changes:',state_changes)
+           print('The number of node ever expanded:',state_changes)
            state_changes=0
            print('Max states ever saved:',MaxnumState)
            print('############################')
@@ -823,7 +826,6 @@ def main():
    
 if __name__=='__main__':
     main()      
-
 
 
 
